@@ -1,8 +1,10 @@
 extern crate proc_macro;
 #[macro_use] extern crate quote;
+extern crate regex;
 extern crate syn;
 
 use proc_macro::TokenStream;
+use regex::Regex;
 
 use std::iter;
 
@@ -33,6 +35,12 @@ pub fn derive_delete(input: TokenStream) -> TokenStream {
     expand_delete(&ast).parse().unwrap()
 }
 
+fn to_table_name<S: AsRef<str>>(struct_name: S) -> String {
+    let re = Regex::new(r"(?P<l>[[:upper:]])").unwrap();
+
+    re.replace_all(struct_name.as_ref(), "_$l")[1..].to_lowercase()
+}
+
 fn expand_create(ast: &syn::MacroInput) -> quote::Tokens {
     let fields: Vec<_> = match ast.body {
         syn::Body::Struct(ref data) => data.fields().iter().map(|f| f.ident.as_ref().unwrap()).filter(|f| f.to_string() != "id").collect(),
@@ -40,7 +48,7 @@ fn expand_create(ast: &syn::MacroInput) -> quote::Tokens {
     };
 
     let name = &ast.ident;
-    let table = name.to_string().to_lowercase();
+    let table = to_table_name(name.to_string());
     
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     let idents = fields.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(", ");
@@ -71,7 +79,7 @@ fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
     };
 
     let name = &ast.ident;
-    let table = name.to_string().to_lowercase();
+    let table = to_table_name(name.to_string());
     
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
@@ -108,7 +116,7 @@ fn expand_update(ast: &syn::MacroInput) -> quote::Tokens {
     };
 
     let name = &ast.ident;
-    let table = name.to_string().to_lowercase();
+    let table = to_table_name(name.to_string());
     
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     
@@ -136,7 +144,7 @@ fn expand_delete(ast: &syn::MacroInput) -> quote::Tokens {
     }
 
     let name = &ast.ident;
-    let table = name.to_string().to_lowercase();
+    let table = to_table_name(name.to_string());
     
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     let delete_str = quote! { concat!("DELETE FROM ", #table, " WHERE id = (?)") };

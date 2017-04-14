@@ -10,9 +10,16 @@ struct Thing {
     name: String,
 }
 
+#[derive(Create, Read, Update, Debug, PartialEq)]
+struct TwoThings {
+    id: Option<i64>,
+    name: String,
+}
+
 fn create_table() -> rusqlite::Connection {
     let conn = rusqlite::Connection::open_in_memory().unwrap();
     conn.execute("CREATE TABLE thing (id INTEGER PRIMARY KEY, value REAL, name TEXT);", &[]).unwrap();
+    conn.execute("CREATE TABLE two_things (id INTEGER PRIMARY KEY, name TEXT);", &[]).unwrap();
     conn
 }
 
@@ -44,3 +51,14 @@ fn test_read_non_existing() {
         assert!(false, "Different error than expected");
     }
 }
+
+#[test]
+fn test_create_two_things() {
+    let conn = create_table();
+
+    let obj = TwoThings{id: None, name: "Ryan".into()};
+    let obj = obj.create(&conn).unwrap();
+
+    assert_eq!(obj.id, Some(1));
+}
+
