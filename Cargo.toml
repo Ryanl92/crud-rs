@@ -9,6 +9,6 @@ proc-macro = true
 [dependencies]
 quote = "0.3"
 regex = "0.2.1"
-rusqlite = "0.8"
+rusqlite = "0.11"
 syn = "0.10"
 
