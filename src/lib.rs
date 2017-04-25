@@ -91,6 +91,12 @@ fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
 
     quote! {
         impl #impl_generics #name #ty_generics #where_clause {
+            /// Get the id of the object. This method will panic if the object has no id
+            #[allow(dead_code)]
+            pub fn id(&self) -> i64 {
+                self.id.expect("No id on this object")
+            }
+            
             #[allow(dead_code)]
             pub fn from_row(row: &::rusqlite::Row) -> #name {
                 #name {
