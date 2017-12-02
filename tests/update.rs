@@ -19,19 +19,28 @@ struct TwoThings {
     name: String,
 }
 
+#[derive(Create, Read, Update, Debug, PartialEq)]
+struct NonI64 {
+    id: Option<i32>,
+    stuff: String,
+}
+
 #[cfg(feature = "rusqlite")]
 fn create_table() -> rusqlite::Connection {
     let conn = rusqlite::Connection::open_in_memory().unwrap();
     conn.execute("CREATE TABLE thing (id INTEGER PRIMARY KEY, value REAL, name TEXT);", &[]).unwrap();
     conn.execute("CREATE TABLE two_things (id INTEGER PRIMARY KEY, name TEXT);", &[]).unwrap();
+    conn.execute("CREATE TABLE non_i64(id INTEGER PRIMARY KEY, stuff TEXT);", &[]).unwrap();
     conn
 }
 
 #[cfg(feature = "postgres")]
 fn create_table() -> postgres::Connection {
     let conn = postgres::Connection::connect("postgresql://crud:root@localhost:5432/crud", postgres::TlsMode::None).unwrap();
-    conn.execute("CREATE TEMP TABLE thing (id BIGSERIAL PRIMARY KEY, value DOUBLE PRECISION, name TEXT);", &[]).unwrap();
-    conn.execute("CREATE TEMP TABLE two_things (id BIGSERIAL PRIMARY KEY, name TEXT);", &[]).unwrap();
+    conn.execute("SET search_path = pg_temp", &[]).unwrap();
+    conn.execute("CREATE TABLE thing (id BIGSERIAL PRIMARY KEY, value DOUBLE PRECISION, name TEXT);", &[]).unwrap();
+    conn.execute("CREATE TABLE two_things (id BIGSERIAL PRIMARY KEY, name TEXT);", &[]).unwrap();
+    conn.execute("CREATE TABLE non_i64(id SERIAL PRIMARY KEY, stuff TEXT);", &[]).unwrap();
     conn
 }
 
@@ -68,5 +77,15 @@ fn test_read_non_existing() {
     assert!(res.is_ok(), format!("{:?}", res));
 
     assert!(res.unwrap().is_none());
+}
+
+#[test]
+fn test_non_i64_id() {
+    let conn = create_table();
+
+    let obj = NonI64{id: None, stuff: "Hello".into()};
+    let obj = obj.create(&conn).unwrap();
+
+    assert_eq!(obj.id, Some(1));
 }
 

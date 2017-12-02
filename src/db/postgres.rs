@@ -1,9 +1,7 @@
 use quote;
 use syn;
 
-use std::iter;
-
-use super::to_table_name;
+use super::{get_id_type, to_table_name};
 
 pub fn expand_create(ast: &syn::MacroInput) -> quote::Tokens {
     let fields: Vec<_> = match ast.body {
@@ -16,7 +14,6 @@ pub fn expand_create(ast: &syn::MacroInput) -> quote::Tokens {
     
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
     let idents = fields.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(", ");
-    let values = iter::repeat("?").take(fields.len()).collect::<Vec<_>>().join(", ");
     let values = (1..fields.len() + 1).fold(String::new(), |acc, i| if acc.is_empty() { acc } else { acc + ", " } + &format!("${}", i));
 
     let create_str = quote! { concat!("INSERT INTO ", #table, "(", #idents, ") VALUES (", #values, ") RETURNING id") };
@@ -27,7 +24,7 @@ pub fn expand_create(ast: &syn::MacroInput) -> quote::Tokens {
             #[allow(dead_code)]
             pub fn create(mut self, conn: &::postgres::Connection) -> Result<#name, ::postgres::Error> {
                 assert!(self.id.is_none(), "Cannot insert if an id is present");
-                let mut stmt = conn.prepare_cached(#create_str)?;
+                let stmt = conn.prepare_cached(#create_str)?;
                 let result = stmt.query(&[#(&self.#idents as &::postgres::types::ToSql),*])?;
 
                 self.id = result.get(0).get(0);
@@ -49,6 +46,8 @@ pub fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
 
     let idents = fields.iter().map(|f| &f.ident).collect::<Vec<_>>();
+    let id_type = get_id_type(fields);
+
     let idents1 = &idents;
     let idents2 = &idents;
     
@@ -58,7 +57,7 @@ pub fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
         impl #impl_generics #name #ty_generics #where_clause {
             /// Get the id of the object. This method will panic if the object has no id
             #[allow(dead_code)]
-            pub fn id(&self) -> i64 {
+            pub fn id(&self) -> #id_type {
                 self.id.expect("No id on this object")
             }
             
@@ -72,8 +71,8 @@ pub fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
             }
             
             #[allow(dead_code)]
-            pub fn read(conn: &::postgres::Connection, id: i64) -> Result<Option<#name>, ::postgres::Error> {
-                let mut stmt = conn.prepare_cached(#select_str)?;
+            pub fn read(conn: &::postgres::Connection, id: #id_type) -> Result<Option<#name>, ::postgres::Error> {
+                let stmt = conn.prepare_cached(#select_str)?;
                 println!("Querying {}", id);
                 let result = stmt.query(&[&id])?.iter().map(#name::from_row).next();
                 Ok(result)
@@ -103,7 +102,7 @@ pub fn expand_update(ast: &syn::MacroInput) -> quote::Tokens {
         impl #impl_generics #name #ty_generics #where_clause {
             #[allow(dead_code)]
             pub fn update(&self, conn: &::postgres::Connection) -> Result<(), ::postgres::Error> {
-                let mut stmt = conn.prepare_cached(#update_str)?;
+                let stmt = conn.prepare_cached(#update_str)?;
 
                 stmt.execute(&[#(&self.#idents as &::postgres::types::ToSql),*, &self.id as &::postgres::types::ToSql])?;
                 Ok(())

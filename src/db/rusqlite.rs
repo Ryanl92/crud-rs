@@ -3,24 +3,26 @@ use syn;
 
 use std::iter;
 
-use super::to_table_name;
+use super::{get_id_type, to_table_name};
 
 pub fn expand_create(ast: &syn::MacroInput) -> quote::Tokens {
-    let fields: Vec<_> = match ast.body {
-        syn::Body::Struct(ref data) => data.fields().iter().map(|f| f.ident.as_ref().unwrap()).filter(|f| f.to_string() != "id").collect(),
+    let fields = match ast.body {
+        syn::Body::Struct(ref data) => data.fields(),
         syn::Body::Enum(_) => panic!("Unable to serialize enums to the database"),
     };
+
+    let idents: Vec<_> = fields.iter().map(|f| f.ident.as_ref().unwrap()).filter(|f| f.to_string() != "id").collect();
 
     let name = &ast.ident;
     let table = to_table_name(name.to_string());
     
     let (impl_generics, ty_generics, where_clause) = ast.generics.split_for_impl();
-    let idents = fields.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(", ");
-    let values = iter::repeat("?").take(fields.len()).collect::<Vec<_>>().join(", ");
+    let idents_string = idents.iter().map(|f| f.to_string()).collect::<Vec<_>>().join(", ");
+    let values_string = iter::repeat("?").take(idents.len()).collect::<Vec<_>>().join(", ");
+    let id_type = get_id_type(fields);
 
-    let create_str = quote! { concat!("INSERT INTO ", #table, "(", #idents, ") VALUES (", #values, ")") };
+    let create_str = quote! { concat!("INSERT INTO ", #table, "(", #idents_string, ") VALUES (", #values_string, ")") };
     
-    let idents = &fields;
     quote! {
         impl #impl_generics #name #ty_generics #where_clause {
             #[allow(dead_code)]
@@ -29,7 +31,7 @@ pub fn expand_create(ast: &syn::MacroInput) -> quote::Tokens {
                 let mut stmt = conn.prepare_cached(#create_str)?;
                 stmt.execute(&[#(&self.#idents as &::rusqlite::types::ToSql),*])?;
 
-                self.id = Some(conn.last_insert_rowid());
+                self.id = Some(conn.last_insert_rowid() as #id_type);
                 Ok(self)
             }
         }
@@ -50,6 +52,7 @@ pub fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
     let idents = fields.iter().map(|f| &f.ident).collect::<Vec<_>>();
     let idents1 = &idents;
     let idents2 = &idents;
+    let id_type = get_id_type(&fields);
     
     let select_str = quote! { concat!("SELECT * FROM ", #table, " WHERE id = (?)")};
 
@@ -57,7 +60,7 @@ pub fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
         impl #impl_generics #name #ty_generics #where_clause {
             /// Get the id of the object. This method will panic if the object has no id
             #[allow(dead_code)]
-            pub fn id(&self) -> i64 {
+            pub fn id(&self) -> #id_type {
                 self.id.expect("No id on this object")
             }
             
@@ -71,7 +74,7 @@ pub fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
             }
             
             #[allow(dead_code)]
-            pub fn read(conn: &::rusqlite::Connection, id: i64) -> Result<Option<#name>, ::rusqlite::Error> {
+            pub fn read(conn: &::rusqlite::Connection, id: #id_type) -> Result<Option<#name>, ::rusqlite::Error> {
                 let mut stmt = conn.prepare_cached(#select_str)?;
                 match stmt.query_row(&[&id], #name::from_row) {
                     Ok(value) => Ok(Some(value)),
