@@ -73,7 +73,6 @@ pub fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
             #[allow(dead_code)]
             pub fn read(conn: &::postgres::Connection, id: #id_type) -> Result<Option<#name>, ::postgres::Error> {
                 let stmt = conn.prepare_cached(#select_str)?;
-                println!("Querying {}", id);
                 let result = stmt.query(&[&id])?.iter().map(#name::from_row).next();
                 Ok(result)
             }
