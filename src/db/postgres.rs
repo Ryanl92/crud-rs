@@ -22,7 +22,7 @@ pub fn expand_create(ast: &syn::MacroInput) -> quote::Tokens {
     quote! {
         impl #impl_generics #name #ty_generics #where_clause {
             #[allow(dead_code)]
-            pub fn create(mut self, conn: &::postgres::Connection) -> Result<#name, ::postgres::Error> {
+            pub fn create(mut self, conn: &::postgres::Connection) -> ::std::result::Result<#name, ::postgres::Error> {
                 assert!(self.id.is_none(), "Cannot insert if an id is present");
                 let stmt = conn.prepare_cached(#create_str)?;
                 let result = stmt.query(&[#(&self.#idents as &::postgres::types::ToSql),*])?;
@@ -71,7 +71,7 @@ pub fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
             }
             
             #[allow(dead_code)]
-            pub fn read(conn: &::postgres::Connection, id: #id_type) -> Result<Option<#name>, ::postgres::Error> {
+            pub fn read(conn: &::postgres::Connection, id: #id_type) -> ::std::result::Result<Option<#name>, ::postgres::Error> {
                 let stmt = conn.prepare_cached(#select_str)?;
                 let result = stmt.query(&[&id])?.iter().map(#name::from_row).next();
                 Ok(result)
@@ -100,7 +100,7 @@ pub fn expand_update(ast: &syn::MacroInput) -> quote::Tokens {
     quote! {
         impl #impl_generics #name #ty_generics #where_clause {
             #[allow(dead_code)]
-            pub fn update(&self, conn: &::postgres::Connection) -> Result<(), ::postgres::Error> {
+            pub fn update(&self, conn: &::postgres::Connection) -> ::std::result::Result<(), ::postgres::Error> {
                 let stmt = conn.prepare_cached(#update_str)?;
 
                 stmt.execute(&[#(&self.#idents as &::postgres::types::ToSql),*, &self.id as &::postgres::types::ToSql])?;
@@ -124,7 +124,7 @@ pub fn expand_delete(ast: &syn::MacroInput) -> quote::Tokens {
     quote! {
         impl #impl_generics #name #ty_generics #where_clause {
             #[allow(dead_code)]
-            pub fn delete(&self, conn: &::postgres::Connection) -> Result<(), ::postgres::Error> {
+            pub fn delete(&self, conn: &::postgres::Connection) -> ::std::result::Result<(), ::postgres::Error> {
                 let mut stmt = conn.prepare_cached(#delete_str)?;
                 stmt.execute(&[&self.id])?;
                 Ok(())

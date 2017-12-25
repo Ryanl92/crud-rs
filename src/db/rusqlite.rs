@@ -26,7 +26,7 @@ pub fn expand_create(ast: &syn::MacroInput) -> quote::Tokens {
     quote! {
         impl #impl_generics #name #ty_generics #where_clause {
             #[allow(dead_code)]
-            pub fn create(mut self, conn: &::rusqlite::Connection) -> Result<#name, ::rusqlite::Error> {
+            pub fn create(mut self, conn: &::rusqlite::Connection) -> ::std::result::Result<#name, ::rusqlite::Error> {
                 assert!(self.id.is_none(), "Cannot insert if an id is present");
                 let mut stmt = conn.prepare_cached(#create_str)?;
                 stmt.execute(&[#(&self.#idents as &::rusqlite::types::ToSql),*])?;
@@ -74,7 +74,7 @@ pub fn expand_read(ast: &syn::MacroInput) -> quote::Tokens {
             }
             
             #[allow(dead_code)]
-            pub fn read(conn: &::rusqlite::Connection, id: #id_type) -> Result<Option<#name>, ::rusqlite::Error> {
+            pub fn read(conn: &::rusqlite::Connection, id: #id_type) -> ::std::result::Result<Option<#name>, ::rusqlite::Error> {
                 let mut stmt = conn.prepare_cached(#select_str)?;
                 match stmt.query_row(&[&id], #name::from_row) {
                     Ok(value) => Ok(Some(value)),
@@ -105,7 +105,7 @@ pub fn expand_update(ast: &syn::MacroInput) -> quote::Tokens {
     quote! {
         impl #impl_generics #name #ty_generics #where_clause {
             #[allow(dead_code)]
-            pub fn update(&self, conn: &::rusqlite::Connection) -> Result<(), ::rusqlite::Error> {
+            pub fn update(&self, conn: &::rusqlite::Connection) -> ::std::result::Result<(), ::rusqlite::Error> {
                 let mut stmt = conn.prepare_cached(#update_str)?;
 
                 stmt.execute(&[#(&self.#idents as &::rusqlite::types::ToSql),*, &self.id as &::rusqlite::types::ToSql])?;
@@ -129,7 +129,7 @@ pub fn expand_delete(ast: &syn::MacroInput) -> quote::Tokens {
     quote! {
         impl #impl_generics #name #ty_generics #where_clause {
             #[allow(dead_code)]
-            pub fn delete(&self, conn: &::rusqlite::Connection) -> Result<(), ::rusqlite::Error> {
+            pub fn delete(&self, conn: &::rusqlite::Connection) -> ::std::result::Result<(), ::rusqlite::Error> {
                 let mut stmt = conn.prepare_cached(#delete_str)?;
                 stmt.execute(&[&self.id])?;
                 Ok(())
